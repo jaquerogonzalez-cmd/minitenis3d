@@ -1,0 +1,1862 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Minitenis 3D · Partido Rápido · Lonvi Games</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root {
+    --bg: #151a22;
+    --ink: #eef0f3;
+    --muted: #a3a9b4;
+    --panel: #1f2631;
+    --line: #36404f;
+    --lime: #d9ec4b;
+    --danger: #ff5c5c;
+    --gold: #f6c445;
+  }
+  * {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Bricolage Grotesque", system-ui, -apple-system, sans-serif;
+    touch-action: none;
+  }
+  #canvas-container {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+  }
+  /* HUD Superior */
+  .hud-top {
+    position: fixed;
+    top: env(safe-area-inset-top, 10px);
+    left: 12px;
+    right: 12px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    gap: 10px;
+  }
+  .scoreboard {
+    background: rgba(21, 26, 34, 0.9);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    backdrop-filter: blur(8px);
+    pointer-events: auto;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .tourney-badge {
+    background: #1d6fa5;
+    color: #fff;
+    font-weight: 800;
+    font-size: 0.72rem;
+    padding: 4px 8px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .score-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  .pts-box {
+    background: var(--lime);
+    color: #121a2b;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 6px;
+    min-width: 34px;
+    text-align: center;
+  }
+  .games-box {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-weight: 800;
+  }
+  .hud-actions {
+    display: flex;
+    gap: 8px;
+    pointer-events: auto;
+  }
+  .icon-btn {
+    background: rgba(31, 38, 49, 0.9);
+    color: var(--ink);
+    border: 1.5px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: transform 0.12s, background 0.12s;
+  }
+  .icon-btn:hover { background: #2b3545; }
+  .icon-btn:active { transform: scale(0.95); }
+  .icon-btn.lime {
+    background: var(--lime);
+    color: #121a2b;
+    border-color: var(--lime);
+  }
+
+  /* Feedback flotante (Perfecto / Forzado / Ace / Velocidad) */
+  #feedback-banner {
+    position: fixed;
+    top: 74px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 12;
+    pointer-events: none;
+    text-align: center;
+    transition: opacity 0.2s;
+  }
+  .pill-msg {
+    display: inline-block;
+    background: rgba(21, 26, 34, 0.92);
+    border: 1.5px solid var(--lime);
+    color: var(--lime);
+    font-weight: 800;
+    font-size: 1rem;
+    padding: 6px 16px;
+    border-radius: 999px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+  }
+  .pill-msg.forced {
+    border-color: var(--danger);
+    color: #ff9b9b;
+  }
+
+  /* Barra de saque en 2 tiempos */
+  #serve-meter {
+    position: fixed;
+    left: 50%;
+    bottom: 155px;
+    transform: translateX(95px);
+    width: 18px;
+    height: 120px;
+    background: rgba(21, 26, 34, 0.9);
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    z-index: 15;
+    display: none;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  #serve-green-zone {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 18%;
+    height: 22%;
+    background: rgba(74, 222, 128, 0.45);
+    border-top: 2px solid #4ade80;
+    border-bottom: 2px solid #4ade80;
+  }
+  #serve-cursor {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: var(--lime);
+    border-radius: 3px;
+    bottom: 0%;
+  }
+
+  /* Controles Táctiles / En pantalla */
+  #touch-controls {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    pointer-events: none;
+    display: none;
+  }
+  #joystick-zone {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 50%;
+    height: 65%;
+    pointer-events: auto;
+  }
+  #joystick-base {
+    position: absolute;
+    left: 36px;
+    bottom: 36px;
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: rgba(31, 38, 49, 0.55);
+    border: 2px solid rgba(217, 236, 75, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #joystick-knob {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--lime);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+    transform: translate(0px, 0px);
+  }
+  .shot-buttons {
+    position: absolute;
+    right: 22px;
+    bottom: 26px;
+    display: grid;
+    grid-template-columns: repeat(2, 78px);
+    gap: 10px;
+    pointer-events: auto;
+  }
+  .shot-btn {
+    height: 64px;
+    border-radius: 14px;
+    border: 2px solid var(--line);
+    background: rgba(31, 38, 49, 0.88);
+    color: var(--ink);
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 0.82rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+  }
+  .shot-btn span.key-hint {
+    font-size: 0.68rem;
+    color: var(--lime);
+    font-weight: 700;
+  }
+  .shot-btn:active, .shot-btn.active {
+    background: var(--lime);
+    color: #121a2b;
+    border-color: var(--lime);
+  }
+  .shot-btn:active span.key-hint, .shot-btn.active span.key-hint {
+    color: #121a2b;
+  }
+
+  /* Pantallas de Menú y Modales */
+  .overlay-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(15, 19, 26, 0.84);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .card-modal {
+    background: var(--panel);
+    border: 1.5px solid var(--line);
+    border-radius: 18px;
+    max-width: 720px;
+    width: 100%;
+    padding: 22px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.55);
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .title-main {
+    font-size: 1.65rem;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.88rem;
+    margin: 2px 0 0;
+  }
+  .section-label {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--lime);
+    font-weight: 800;
+    margin: 14px 0 8px;
+  }
+  .legends-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+    gap: 10px;
+  }
+  .legend-card {
+    background: var(--bg);
+    border: 2px solid var(--line);
+    border-radius: 13px;
+    padding: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.12s;
+  }
+  .legend-card:hover { transform: translateY(-2px); }
+  .legend-card.selected-p1 {
+    border-color: var(--lime);
+    box-shadow: 0 0 0 2px rgba(217, 236, 75, 0.25);
+  }
+  .legend-card.selected-p2 {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+  }
+  .legend-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .legend-name {
+    font-weight: 800;
+    font-size: 1rem;
+  }
+  .tier-tag {
+    background: rgba(246, 196, 69, 0.18);
+    color: var(--gold);
+    border: 1px solid var(--gold);
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  .gear-info {
+    font-size: 0.76rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .stat-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    margin: 3px 0;
+  }
+  .stat-bar-row span { width: 58px; color: var(--muted); }
+  .stat-track {
+    flex: 1;
+    height: 6px;
+    background: #263040;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .stat-fill {
+    height: 100%;
+    background: var(--lime);
+  }
+  .options-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chip-btn {
+    background: var(--bg);
+    color: var(--ink);
+    border: 1.5px solid var(--line);
+    border-radius: 9px;
+    padding: 7px 12px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .chip-btn.active {
+    background: var(--lime);
+    color: #121a2b;
+    border-color: var(--lime);
+    font-weight: 800;
+  }
+  .cta-bar {
+    margin-top: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .play-btn {
+    background: var(--lime);
+    color: #121a2b;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 24px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 1.05rem;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(217, 236, 75, 0.3);
+  }
+  .stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 0.9rem;
+  }
+  .stats-table td, .stats-table th {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--line);
+    text-align: center;
+  }
+  .stats-table th:nth-child(2), .stats-table td:nth-child(2) {
+    color: var(--muted);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<!-- HUD Superior -->
+<div class="hud-top">
+  <div class="scoreboard">
+    <span class="tourney-badge" id="hud-tourney">Abierto de la Isla · Dura</span>
+    <div class="score-row">
+      <span id="hud-p1-name">Maestro</span>
+      <span class="games-box" id="hud-p1-games">0</span>
+      <span class="pts-box" id="hud-p1-pts">0</span>
+      <span style="color:var(--muted)">vs</span>
+      <span class="pts-box" id="hud-p2-pts">0</span>
+      <span class="games-box" id="hud-p2-games">0</span>
+      <span id="hud-p2-name">Gladiador</span>
+    </div>
+    <span id="hud-serve-speed" style="font-size:0.78rem;color:var(--lime);font-weight:800;"></span>
+  </div>
+
+  <div class="hud-actions">
+    <button class="icon-btn lime" id="btn-download" title="Guardar archivo HTML para jugar sin conexión">⬇ Descargar .HTML</button>
+    <button class="icon-btn" id="btn-fullscreen" title="Pantalla completa (F)">⛶</button>
+    <button class="icon-btn" id="btn-pause" title="Pausa (Esc)">⏸ Pausa</button>
+  </div>
+</div>
+
+<!-- Aviso de calidad de golpe / cantos del juez -->
+<div id="feedback-banner" style="opacity:0;">
+  <div class="pill-msg" id="feedback-text">¡GOLPE PERFECTO!</div>
+</div>
+
+<!-- Barra de saque en dos tiempos -->
+<div id="serve-meter">
+  <div id="serve-green-zone"></div>
+  <div id="serve-cursor"></div>
+</div>
+
+<!-- Controles en pantalla -->
+<div id="touch-controls">
+  <div id="joystick-zone">
+    <div id="joystick-base">
+      <div id="joystick-knob"></div>
+    </div>
+  </div>
+  <div class="shot-buttons">
+    <button class="shot-btn" data-shot="topspin">Liftado <span class="key-hint">Tecla Z</span></button>
+    <button class="shot-btn" data-shot="flat">Plano <span class="key-hint">Tecla X</span></button>
+    <button class="shot-btn" data-shot="slice">Cortado <span class="key-hint">C (+↑ Dejada)</span></button>
+    <button class="shot-btn" data-shot="lob">Globo <span class="key-hint">Tecla V</span></button>
+  </div>
+</div>
+
+<!-- Menú Principal: Selección de las 3 Leyendas -->
+<div class="overlay-screen" id="menu-screen">
+  <div class="card-modal">
+    <div class="card-header">
+      <div>
+        <h1 class="title-main">🎾 Minitenis 3D · Partido Rápido</h1>
+        <p class="subtitle">Lonvi Games · Estadio Abierto de la Isla (Cancha dura rápida · Sets a 3 juegos)</p>
+      </div>
+      <button class="icon-btn lime" id="btn-download-menu">⬇ Descargar Juego (.HTML)</button>
+    </div>
+
+    <div class="section-label">1. Elige tu Leyenda (Clic izquierdo = Tú · Clic derecho o botón = Rival)</div>
+    <div class="legends-grid" id="legends-container"></div>
+
+    <div class="section-label">2. Rival (IA) y Dificultad</div>
+    <div class="options-row" id="rival-row" style="margin-bottom:10px;"></div>
+    <div class="options-row" id="diff-row">
+      <button class="chip-btn" data-diff="0.78">Fácil</button>
+      <button class="chip-btn active" data-diff="0.92">Normal</button>
+      <button class="chip-btn" data-diff="1.06">Experto</button>
+    </div>
+
+    <div class="section-label">3. Condiciones del Abierto de la Isla</div>
+    <div class="options-row" id="cond-row">
+      <button class="chip-btn active" data-cond="normal">☀️ Día despejado</button>
+      <button class="chip-btn" data-cond="calor">🔥 Calor (Más desgaste)</button>
+      <button class="chip-btn" data-cond="viento">💨 Viento lateral</button>
+      <button class="chip-btn" data-cond="altura">⛰️ Altura (Vuela más)</button>
+      <button class="chip-btn" data-cond="noche">🌙 Sesión Nocturna</button>
+    </div>
+
+    <div class="cta-bar">
+      <div style="font-size:0.78rem;color:var(--muted);max-width:410px;">
+        <b>Controles:</b> Moverse con <b>WASD / Flechas</b> o Joystick. Mantén <b>Z</b> (Liftado), <b>X</b> (Plano), <b>C</b> (Cortado / +↑ Dejada) o <b>V</b> (Globo) <i>antes</i> de que llegue la pelota para cargar el anillo bajo tus pies.
+      </div>
+      <button class="play-btn" id="btn-start-match">▶ Jugar Partido</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pantalla de Fin de Partido / Pausa -->
+<div class="overlay-screen" id="end-screen" style="display:none;">
+  <div class="card-modal" style="max-width:520px;">
+    <h2 class="title-main" id="end-title">¡Partido Terminado!</h2>
+    <p class="subtitle" id="end-subtitle">Abierto de la Isla · Resultado Oficial</p>
+    <table class="stats-table">
+      <thead>
+        <tr>
+          <th id="stat-p1-head">Tú</th>
+          <th>Estadística</th>
+          <th id="stat-p2-head">Rival</th>
+        </tr>
+      </thead>
+      <tbody id="stats-tbody"></tbody>
+    </table>
+    <div class="cta-bar">
+      <button class="icon-btn" id="btn-back-menu">Cambiar Leyendas</button>
+      <button class="play-btn" id="btn-rematch">🔄 Revancha</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   1. DATOS DE LAS 3 LEYENDAS Y EQUIPAMIENTO LONVI
+   ============================================================================ */
+const LEGENDS = [
+  {
+    id: 'maestro',
+    name: 'El Maestro',
+    style: 'Pegador de precisión y red',
+    kit: 'Lonvi Ocaso · Raqueta Aurora',
+    shirt: 0x1e293b,
+    short: 0x0f172a,
+    band: 0xd9ec4b,
+    racketColor: 0x38bdf8,
+    skin: 0xf1c27d,
+    stats: { speed: 88, power: 90, control: 99, serve: 96 },
+    aiNetFreq: 0.45
+  },
+  {
+    id: 'gladiador',
+    name: 'El Gladiador',
+    style: 'Defensor de fondo y liftado',
+    kit: 'Lonvi Sendero · Raqueta Fénix',
+    shirt: 0xd97706,
+    short: 0x1f2937,
+    band: 0xfef08a,
+    racketColor: 0xef4444,
+    skin: 0xe0ac69,
+    stats: { speed: 99, power: 94, control: 91, serve: 86 },
+    aiNetFreq: 0.12
+  },
+  {
+    id: 'titan',
+    name: 'El Titán',
+    style: 'Contragolpeador total',
+    kit: 'Lonvi Senda · Raqueta Vértice',
+    shirt: 0x15803d,
+    short: 0x111827,
+    band: 0xffffff,
+    racketColor: 0xd9ec4b,
+    skin: 0xf1c27d,
+    stats: { speed: 95, power: 92, control: 97, serve: 92 },
+    aiNetFreq: 0.25
+  }
+];
+
+let selectedP1 = 0;
+let selectedP2 = 1;
+let aiDifficulty = 0.92;
+let matchCondition = 'normal';
+
+/* ============================================================================
+   2. AUDIO PROCEDURAL (WEB AUDIO API)
+   ============================================================================ */
+let audioCtx = null;
+function playSound(type) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === 'perfect') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(520, now);
+      osc.frequency.exponentialRampToValueAtTime(190, now + 0.11);
+      gain.gain.setValueAtTime(0.32, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    } else if (type === 'hit') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(360, now);
+      osc.frequency.exponentialRampToValueAtTime(120, now + 0.09);
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+      osc.start(now);
+      osc.stop(now + 0.09);
+    } else if (type === 'forced') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(210, now);
+      osc.frequency.exponentialRampToValueAtTime(90, now + 0.12);
+      gain.gain.setValueAtTime(0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    } else if (type === 'bounce') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.exponentialRampToValueAtTime(75, now + 0.06);
+      gain.gain.setValueAtTime(0.14, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      osc.start(now);
+      osc.stop(now + 0.06);
+    } else if (type === 'crowd') {
+      // Aplauso breve con ruido blanco filtrado
+      const bufferSize = audioCtx.sampleRate * 0.45;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.18));
+      }
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 1100;
+      const nGain = audioCtx.createGain();
+      nGain.gain.value = 0.18;
+      noise.connect(filter);
+      filter.connect(nGain);
+      nGain.connect(audioCtx.destination);
+      noise.start(now);
+    }
+  } catch (e) {}
+}
+
+/* ============================================================================
+   3. ESCENA 3D: ESTADIO «ABIERTO DE LA ISLA»
+   ============================================================================ */
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+
+const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.1, 250);
+camera.position.set(0, 18.5, 27.5);
+camera.lookAt(0, 0, -1.5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+container.appendChild(renderer.domElement);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.72);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.9);
+dirLight.position.set(18, 32, 20);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 1024;
+dirLight.shadow.mapSize.height = 1024;
+scene.add(dirLight);
+
+// Dimensiones de la cancha en unidades 3D
+const COURT_W = 11;   // X: -5.5 a +5.5
+const COURT_L = 24;   // Z: -12 a +12
+const HALF_W = COURT_W / 2;
+const HALF_L = COURT_L / 2;
+const SERVICE_Z = 5.5;
+
+// Piso exterior (Azul claro Australia) y cancha principal (Azul intenso Abierto de la Isla)
+const outerFloor = new THREE.Mesh(
+  new THREE.PlaneGeometry(34, 44),
+  new THREE.MeshLambertMaterial({ color: 0x2b6cb0 })
+);
+outerFloor.rotation.x = -Math.PI / 2;
+outerFloor.receiveShadow = true;
+scene.add(outerFloor);
+
+const innerCourt = new THREE.Mesh(
+  new THREE.PlaneGeometry(COURT_W, COURT_L),
+  new THREE.MeshLambertMaterial({ color: 0x1e4e8c })
+);
+innerCourt.rotation.x = -Math.PI / 2;
+innerCourt.position.y = 0.01;
+innerCourt.receiveShadow = true;
+scene.add(innerCourt);
+
+// Líneas blancas de la cancha
+function addLine(w, l, x, z) {
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, l),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, 0.02, z);
+  scene.add(m);
+}
+addLine(COURT_W, 0.14, 0, HALF_L);
+addLine(COURT_W, 0.14, 0, -HALF_L);
+addLine(0.14, COURT_L, -HALF_W, 0);
+addLine(0.14, COURT_L, HALF_W, 0);
+addLine(COURT_W, 0.12, 0, SERVICE_Z);
+addLine(COURT_W, 0.12, 0, -SERVICE_Z);
+addLine(0.12, SERVICE_Z * 2, 0, 0);
+addLine(0.12, 0.45, 0, HALF_L - 0.22);
+addLine(0.12, 0.45, 0, -HALF_L + 0.22);
+
+// Red central y postes
+const netGroup = new THREE.Group();
+const netMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(COURT_W + 1.2, 0.95, 0.08),
+  new THREE.MeshLambertMaterial({ color: 0x111827, transparent: true, opacity: 0.72 })
+);
+netMesh.position.y = 0.48;
+netGroup.add(netMesh);
+
+const netTape = new THREE.Mesh(
+  new THREE.BoxGeometry(COURT_W + 1.2, 0.11, 0.1),
+  new THREE.MeshBasicMaterial({ color: 0xffffff })
+);
+netTape.position.y = 0.95;
+netGroup.add(netTape);
+
+[-HALF_W - 0.6, HALF_W + 0.6].forEach(px => {
+  const post = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.09, 1.08, 12),
+    new THREE.MeshLambertMaterial({ color: 0x0f172a })
+  );
+  post.position.set(px, 0.54, 0);
+  netGroup.add(post);
+});
+scene.add(netGroup);
+
+// Carteles publicitarios con las marcas de Minitenis (Lonvi, Cóndor, Marea, Brasa, Altura)
+function createSponsorBanner(text, bgHex, fgHex, w, h) {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = bgHex;
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(6, 6, 500, 116);
+  ctx.fillStyle = fgHex;
+  ctx.font = '800 44px "Bricolage Grotesque", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 256, 64);
+  const tex = new THREE.CanvasTexture(c);
+  return new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, 0.25),
+    new THREE.MeshLambertMaterial({ map: tex })
+  );
+}
+
+const backWall1 = createSponsorBanner('LONVI · SENDA · OCASO', '#121a2b', '#d9ec4b', 9.5, 1.3);
+backWall1.position.set(-5.2, 0.65, -16.5);
+scene.add(backWall1);
+
+const backWall2 = createSponsorBanner('ABIERTO DE LA ISLA', '#0f3f6e', '#ffffff', 9.5, 1.3);
+backWall2.position.set(5.2, 0.65, -16.5);
+scene.add(backWall2);
+
+const sideBrands = [
+  { name: 'LONVI SENDERO', bg: '#182232', fg: '#d9ec4b', z: -9 },
+  { name: 'CÓNDOR', bg: '#1e293b', fg: '#38bdf8', z: -3 },
+  { name: 'MAREA', bg: '#0f4c5c', fg: '#a7f3d0', z: 3 },
+  { name: 'BRASA · ALTURA', bg: '#3b1d1d', fg: '#fca5a5', z: 9 }
+];
+sideBrands.forEach(b => {
+  const leftB = createSponsorBanner(b.name, b.bg, b.fg, 5.2, 1.0);
+  leftB.rotation.y = Math.PI / 2;
+  leftB.position.set(-10.2, 0.5, b.z);
+  scene.add(leftB);
+
+  const rightB = createSponsorBanner(b.name, b.bg, b.fg, 5.2, 1.0);
+  rightB.rotation.y = -Math.PI / 2;
+  rightB.position.set(10.2, 0.5, b.z);
+  scene.add(rightB);
+});
+
+// Silla del árbitro, recogepelotas y público animado con banderas de viento
+const umpireGroup = new THREE.Group();
+const chairSteps = new THREE.Mesh(
+  new THREE.BoxGeometry(0.9, 2.2, 0.9),
+  new THREE.MeshLambertMaterial({ color: 0x334155 })
+);
+chairSteps.position.y = 1.1;
+umpireGroup.add(chairSteps);
+const umpireHead = new THREE.Mesh(
+  new THREE.SphereGeometry(0.28, 12, 12),
+  new THREE.MeshLambertMaterial({ color: 0xf1c27d })
+);
+umpireHead.position.y = 2.65;
+umpireGroup.add(umpireHead);
+umpireGroup.position.set(-7.6, 0, 0);
+scene.add(umpireGroup);
+
+// Banderas indicadoras del viento y espectadores
+const crowdSpectators = [];
+const windFlags = [];
+for (let i = 0; i < 28; i++) {
+  const spec = new THREE.Mesh(
+    new THREE.BoxGeometry(0.55, 0.85, 0.55),
+    new THREE.MeshLambertMaterial({
+      color: [0xd9ec4b, 0x38bdf8, 0xf43f5e, 0xfacc15, 0xffffff][i % 5]
+    })
+  );
+  const side = i % 2 === 0 ? -1 : 1;
+  const row = Math.floor(i / 14);
+  spec.position.set(side * (12.2 + row * 1.4), 1.2 + row * 0.8, -11 + (i % 14) * 1.7);
+  spec.userData = { baseY: spec.position.y, phase: i * 0.7 };
+  scene.add(spec);
+  crowdSpectators.push(spec);
+}
+
+[-9.5, 9.5].forEach(fx => {
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 3.6, 8),
+    new THREE.MeshLambertMaterial({ color: 0xe2e8f0 })
+  );
+  pole.position.set(fx, 1.8, -16.2);
+  scene.add(pole);
+
+  const flag = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.3, 0.65),
+    new THREE.MeshBasicMaterial({ color: 0xd9ec4b, side: THREE.DoubleSide })
+  );
+  flag.position.set(fx + 0.65, 3.25, -16.2);
+  scene.add(flag);
+  windFlags.push({ mesh: flag, baseX: fx });
+});
+
+/* ============================================================================
+   4. MODELOS 3D DE LOS TENISTAS, ANILLO DE CARGA, PUNTERÍA Y BOTE
+   ============================================================================ */
+function createTennisPlayerMesh(legend) {
+  const group = new THREE.Group();
+
+  // Sombra base
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.62, 20),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28 })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.025;
+  group.add(shadow);
+
+  // Piernas / Short
+  const shorts = new THREE.Mesh(
+    new THREE.BoxGeometry(0.72, 0.55, 0.45),
+    new THREE.MeshLambertMaterial({ color: legend.short })
+  );
+  shorts.position.y = 0.55;
+  group.add(shorts);
+
+  // Torso / Polera Lonvi
+  const torso = new THREE.Mesh(
+    new THREE.BoxGeometry(0.82, 0.92, 0.48),
+    new THREE.MeshLambertMaterial({ color: legend.shirt })
+  );
+  torso.position.y = 1.25;
+  torso.castShadow = true;
+  group.add(torso);
+
+  // Cabeza + Cintillo
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.36, 16, 16),
+    new THREE.MeshLambertMaterial({ color: legend.skin })
+  );
+  head.position.y = 1.98;
+  group.add(head);
+
+  const headband = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.37, 0.37, 0.12, 16),
+    new THREE.MeshBasicMaterial({ color: legend.band })
+  );
+  headband.position.y = 2.06;
+  group.add(headband);
+
+  // Brazo y Raqueta
+  const armPivot = new THREE.Group();
+  armPivot.position.set(0.52, 1.35, 0);
+
+  const racketHandle = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.55, 0.08),
+    new THREE.MeshLambertMaterial({ color: 0xcbd5e1 })
+  );
+  racketHandle.position.set(0.15, 0.15, 0.25);
+  racketHandle.rotation.x = Math.PI / 4;
+  armPivot.add(racketHandle);
+
+  const racketHead = new THREE.Mesh(
+    new THREE.TorusGeometry(0.28, 0.045, 8, 20),
+    new THREE.MeshBasicMaterial({ color: legend.racketColor })
+  );
+  racketHead.position.set(0.15, 0.52, 0.58);
+  racketHead.rotation.y = Math.PI / 2;
+  armPivot.add(racketHead);
+
+  group.add(armPivot);
+  group.userData.armPivot = armPivot;
+  return group;
+}
+
+// Anillo de carga bajo los pies del jugador 1
+const chargeRingGeo = new THREE.RingGeometry(0.72, 0.96, 32);
+const chargeRingMat = new THREE.MeshBasicMaterial({
+  color: 0xd9ec4b,
+  side: THREE.DoubleSide,
+  transparent: true,
+  opacity: 0.0
+});
+const chargeRing = new THREE.Mesh(chargeRingGeo, chargeRingMat);
+chargeRing.rotation.x = -Math.PI / 2;
+chargeRing.position.y = 0.035;
+scene.add(chargeRing);
+
+// Flecha de puntería en la cancha
+const aimArrowGroup = new THREE.Group();
+const arrowLine = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.18, 2.8),
+  new THREE.MeshBasicMaterial({ color: 0xd9ec4b, transparent: true, opacity: 0.75 })
+);
+arrowLine.rotation.x = -Math.PI / 2;
+arrowLine.position.z = -1.4;
+aimArrowGroup.add(arrowLine);
+aimArrowGroup.visible = false;
+scene.add(aimArrowGroup);
+
+// Marca circular en el suelo donde va a picar la pelota del rival
+const bounceMarker = new THREE.Mesh(
+  new THREE.RingGeometry(0.32, 0.52, 24),
+  new THREE.MeshBasicMaterial({ color: 0xd9ec4b, side: THREE.DoubleSide })
+);
+bounceMarker.rotation.x = -Math.PI / 2;
+bounceMarker.position.y = 0.035;
+bounceMarker.visible = false;
+scene.add(bounceMarker);
+
+// Pelota 3D y su sombra en el suelo
+const ballMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(0.21, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0xd9ec4b })
+);
+scene.add(ballMesh);
+
+const ballShadow = new THREE.Mesh(
+  new THREE.CircleGeometry(0.22, 16),
+  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38 })
+);
+ballShadow.rotation.x = -Math.PI / 2;
+ballShadow.position.y = 0.025;
+scene.add(ballShadow);
+
+/* ============================================================================
+   5. ESTADO DEL PARTIDO Y FÍSICA DEL TENIS
+   ============================================================================ */
+let p1Mesh = null;
+let p2Mesh = null;
+
+const state = {
+  running: false,
+  paused: false,
+  phase: 'serve_wait', // 'serve_wait' | 'serve_toss' | 'rally' | 'point_Pause'
+  server: 1,           // 1 = Jugador, 2 = IA
+  serveSide: 1,        // 1 = Deuce (derecha), -1 = Ad (izquierda)
+  faults: 0,
+  tossHeight: 0,
+  tossVel: 0,
+  windX: 0,
+  rallyCount: 0,
+  p1: {
+    x: 2.2, z: HALF_L + 0.6, vx: 0, vz: 0,
+    energy: 100, charging: false, chargeTime: 0, queuedShot: 'topspin',
+    pts: 0, games: 0,
+    aces: 0, winners: 0, errors: 0, fastestServe: 0, longestRally: 0
+  },
+  p2: {
+    x: -2.2, z: -HALF_L - 0.6, vx: 0, vz: 0,
+    energy: 100, targetX: 0, targetZ: -HALF_L,
+    pts: 0, games: 0,
+    aces: 0, winners: 0, errors: 0
+  },
+  ball: {
+    x: 2.2, y: 1.1, z: HALF_L + 0.3,
+    vx: 0, vy: 0, vz: 0,
+    spin: 'flat', lastHitter: 1, bounces: 0,
+    targetBounceX: 0, targetBounceZ: 0
+  }
+};
+
+// Mostrar mensajes de feedback en pantalla
+let feedbackTimeout = null;
+function showFeedback(text, isForced = false) {
+  const banner = document.getElementById('feedback-banner');
+  const pill = document.getElementById('feedback-text');
+  pill.textContent = text;
+  pill.className = isForced ? 'pill-msg forced' : 'pill-msg';
+  banner.style.opacity = '1';
+  if (feedbackTimeout) clearTimeout(feedbackTimeout);
+  feedbackTimeout = setTimeout(() => { banner.style.opacity = '0'; }, 1450);
+}
+
+// Configurar posiciones para el saque
+function setupPoint() {
+  state.phase = 'serve_wait';
+  state.rallyCount = 0;
+  const totalPts = state.p1.pts + state.p2.pts;
+  state.serveSide = (totalPts % 2 === 0) ? 1 : -1;
+
+  state.p1.charging = false;
+  state.p1.chargeTime = 0;
+  chargeRingMat.opacity = 0;
+  aimArrowGroup.visible = false;
+  bounceMarker.visible = false;
+  document.getElementById('serve-meter').style.display = 'none';
+
+  if (state.server === 1) {
+    state.p1.x = state.serveSide * 2.1;
+    state.p1.z = HALF_L + 0.4;
+    state.p2.x = -state.serveSide * 2.8;
+    state.p2.z = -HALF_L - 0.3;
+    state.ball.x = state.p1.x + 0.3;
+    state.ball.y = 1.1;
+    state.ball.z = state.p1.z - 0.2;
+  } else {
+    state.p2.x = -state.serveSide * 2.1;
+    state.p2.z = -HALF_L - 0.4;
+    state.p1.x = state.serveSide * 2.8;
+    state.p1.z = HALF_L + 0.3;
+    state.ball.x = state.p2.x;
+    state.ball.y = 1.1;
+    state.ball.z = state.p2.z + 0.2;
+    setTimeout(() => {
+      if (state.running && !state.paused && state.phase === 'serve_wait' && state.server === 2) {
+        aiExecuteServe();
+      }
+    }, 950);
+  }
+  state.ball.vx = 0; state.ball.vy = 0; state.ball.vz = 0;
+}
+
+// Calcular trayectoria física hacia un punto objetivo (tx, tz)
+function launchBallTowards(fromX, fromY, fromZ, tx, tz, flightTime, shotType) {
+  const gravity = matchCondition === 'altura' ? 16.2 : 18.5;
+  state.ball.x = fromX;
+  state.ball.y = Math.max(0.45, fromY);
+  state.ball.z = fromZ;
+  state.ball.vx = (tx - fromX) / flightTime;
+  state.ball.vz = (tz - fromZ) / flightTime;
+  state.ball.vy = (0.21 - state.ball.y + 0.5 * gravity * flightTime * flightTime) / flightTime;
+  state.ball.spin = shotType;
+  state.ball.bounces = 0;
+  state.ball.targetBounceX = tx;
+  state.ball.targetBounceZ = tz;
+
+  bounceMarker.position.set(tx, 0.035, tz);
+  bounceMarker.visible = true;
+}
+
+// IA realiza el saque
+function aiExecuteServe() {
+  const leg2 = LEGENDS[selectedP2];
+  const targetBoxX = state.serveSide * (0.6 + Math.random() * 1.8);
+  const targetBoxZ = 2.6 + Math.random() * (SERVICE_Z - 3.1);
+  const flightT = 0.62 - (leg2.stats.serve / 1000);
+  state.ball.lastHitter = 2;
+  state.phase = 'rally';
+  const kmh = Math.round(172 + (leg2.stats.serve - 80) * 1.5 + Math.random() * 14);
+  document.getElementById('hud-serve-speed').textContent = `Saque IA: ${kmh} km/h`;
+  playSound('hit');
+  launchBallTowards(state.p2.x, 2.2, state.p2.z + 0.3, targetBoxX, targetBoxZ, flightT, 'flat');
+}
+
+// Jugador 1 lanza o impacta el saque en dos tiempos
+function handlePlayerServeButton(shotType) {
+  const meter = document.getElementById('serve-meter');
+  if (state.phase === 'serve_wait') {
+    state.phase = 'serve_toss';
+    state.tossHeight = 0.1;
+    state.tossVel = 1.65;
+    state.p1.queuedShot = shotType;
+    meter.style.display = 'block';
+    return;
+  }
+  if (state.phase === 'serve_toss') {
+    meter.style.display = 'none';
+    const leg1 = LEGENDS[selectedP1];
+    // Zona verde está cuando tossHeight está entre 0.62 y 0.88
+    const isGreen = state.tossHeight >= 0.58 && state.tossHeight <= 0.90;
+    const joy = getInputVector();
+
+    // Si falla mucho el timing en un saque plano, puede ser falta
+    const isFault = (!isGreen && shotType === 'flat' && Math.random() < 0.45) || state.tossHeight < 0.25;
+    const baseBoxX = -state.serveSide * (1.35 + joy.x * 1.15);
+    const targetX = THREE.MathUtils.clamp(baseBoxX, -HALF_W + 0.3, HALF_W - 0.3);
+    const targetZ = isFault ? (-SERVICE_Z - 1.3) : (-2.8 - Math.random() * 2.1);
+
+    const speedFactor = isGreen ? 0.54 : 0.68;
+    const kmh = Math.round((isGreen ? 196 : 162) + (leg1.stats.serve - 85) * 1.4);
+    document.getElementById('hud-serve-speed').textContent = `Saque: ${kmh} km/h`;
+    if (!isFault && kmh > state.p1.fastestServe) state.p1.fastestServe = kmh;
+
+    if (isGreen) {
+      showFeedback(`¡SAQUE PERFECTO! · ${kmh} km/h`);
+      playSound('perfect');
+    } else {
+      showFeedback('Saque normal');
+      playSound('hit');
+    }
+
+    state.ball.lastHitter = 1;
+    state.phase = 'rally';
+    p1Mesh.userData.armPivot.rotation.x = -1.2;
+    setTimeout(() => { if (p1Mesh) p1Mesh.userData.armPivot.rotation.x = 0; }, 180);
+    launchBallTowards(state.p1.x, 2.35, state.p1.z - 0.2, targetX, targetZ, speedFactor, shotType);
+  }
+}
+
+// Ejecutar golpe del Jugador 1 durante el peloteo
+function tryPlayerHitBall() {
+  if (state.phase !== 'rally' || state.ball.lastHitter === 1) return false;
+  const dx = state.ball.x - state.p1.x;
+  const dz = state.ball.z - state.p1.z;
+  const dist = Math.hypot(dx, dz);
+
+  // Alcance máximo del tenista
+  if (dist > 2.45 || state.ball.y > 2.85) return false;
+
+  const joy = getInputVector();
+  const isMovingFast = Math.hypot(state.p1.vx, state.p1.vz) > 2.5;
+  const charge = state.p1.chargeTime;
+  const shot = state.p1.queuedShot || 'topspin';
+
+  // Determinar calidad del golpe y motivo si es forzado (según versión 1.5.0 de Minitenis)
+  let quality = 'normal';
+  let forcedReason = '';
+
+  if (charge > 1.05) {
+    quality = 'forced';
+    forcedReason = 'Forzado (pasado de carga)';
+  } else if (charge < 0.08) {
+    quality = 'forced';
+    forcedReason = 'Forzado (tarde)';
+  } else if (dist < 0.35) {
+    quality = 'forced';
+    forcedReason = 'Forzado (muy cerca)';
+  } else if (dist > 1.95) {
+    quality = 'forced';
+    forcedReason = 'Forzado (muy lejos)';
+  } else if (isMovingFast) {
+    quality = 'forced';
+    forcedReason = 'Forzado (corriendo)';
+  } else if (charge >= 0.22 && charge <= 0.95) {
+    quality = 'perfect';
+  }
+
+  // Detectar Dejada (Cortado + Joystick arriba) o Smash (pelota alta cerca de la red)
+  const isDropShot = (shot === 'slice' && joy.y < -0.35);
+  const isSmash = (state.ball.y > 1.65 && state.p1.z < HALF_L - 2.5 && shot !== 'lob');
+
+  let flightTime = 0.78;
+  let targetZ = -HALF_L + 2.2 - (-joy.y * 1.6);
+  let targetX = joy.x * (HALF_W - 0.65);
+
+  if (isDropShot) {
+    flightTime = 0.86;
+    targetZ = -1.7 - Math.random() * 1.1;
+    showFeedback('¡Dejada corta!');
+  } else if (isSmash) {
+    flightTime = 0.46;
+    targetZ = -HALF_L + 3.2;
+    showFeedback('💥 ¡SMASH!');
+  } else if (shot === 'flat') {
+    flightTime = quality === 'perfect' ? 0.56 : 0.64;
+    targetZ = -HALF_L + 1.4;
+  } else if (shot === 'topspin') {
+    flightTime = quality === 'perfect' ? 0.72 : 0.80;
+    targetZ = -HALF_L + 1.8;
+  } else if (shot === 'slice') {
+    flightTime = 0.90;
+    targetZ = -HALF_L + 3.2;
+  } else if (shot === 'lob') {
+    flightTime = 1.28;
+    targetZ = -HALF_L + 1.2;
+  }
+
+  // Si sale forzado o con poca energía, hay dispersión
+  if (quality === 'forced') {
+    targetX += (Math.random() - 0.5) * 2.2;
+    if (shot === 'flat' && Math.random() < 0.28) {
+      targetZ = -HALF_L - 1.1; // Riesgo de irse larga en golpe plano forzado
+    }
+    showFeedback(forcedReason, true);
+    playSound('forced');
+  } else if (quality === 'perfect') {
+    if (!isDropShot && !isSmash) showFeedback('✨ ¡GOLPE PERFECTO!');
+    playSound('perfect');
+  } else {
+    playSound('hit');
+  }
+
+  state.ball.lastHitter = 1;
+  state.rallyCount++;
+  if (state.rallyCount > state.p1.longestRally) state.p1.longestRally = state.rallyCount;
+
+  state.p1.charging = false;
+  state.p1.chargeTime = 0;
+  chargeRingMat.opacity = 0;
+  aimArrowGroup.visible = false;
+
+  p1Mesh.userData.armPivot.rotation.x = -1.1;
+  setTimeout(() => { if (p1Mesh) p1Mesh.userData.armPivot.rotation.x = 0; }, 160);
+
+  launchBallTowards(state.ball.x, state.ball.y, state.ball.z, targetX, targetZ, flightTime, isSmash ? 'flat' : shot);
+  return true;
+}
+
+/* ============================================================================
+   6. REGLAS DE PUNTUACIÓN (SET A 3 JUEGOS + SÚPER TIE-BREAK EN 3-3)
+   ============================================================================ */
+function awardPoint(winner) {
+  if (state.phase === 'point_pause') return;
+  state.phase = 'point_pause';
+  bounceMarker.visible = false;
+  playSound('crowd');
+
+  if (winner === 1) {
+    state.p1.pts++;
+    if (state.rallyCount <= 1 && state.server === 1) state.p1.aces++;
+    else if (state.ball.lastHitter === 1) state.p1.winners++;
+  } else {
+    state.p2.pts++;
+    if (state.ball.lastHitter === 1) state.p1.errors++;
+    else state.p2.winners++;
+  }
+
+  const isSuperTieBreak = (state.p1.games === 3 && state.p2.games === 3);
+  if (isSuperTieBreak) {
+    // Súper tie-break a 10 puntos con diferencia de 2 (propio del Abierto de la Isla)
+    if ((state.p1.pts >= 10 || state.p2.pts >= 10) && Math.abs(state.p1.pts - state.p2.pts) >= 2) {
+      if (state.p1.pts > state.p2.pts) state.p1.games++;
+      else state.p2.games++;
+      updateScoreHUD();
+      finishMatch();
+      return;
+    }
+    if ((state.p1.pts + state.p2.pts) % 2 === 1) {
+      state.server = state.server === 1 ? 2 : 1;
+    }
+  } else {
+    // Juego normal: 0, 15, 30, 40, Iguales
+    if ((state.p1.pts >= 4 || state.p2.pts >= 4) && Math.abs(state.p1.pts - state.p2.pts) >= 2) {
+      if (state.p1.pts > state.p2.pts) state.p1.games++;
+      else state.p2.games++;
+      state.p1.pts = 0;
+      state.p2.pts = 0;
+      state.server = state.server === 1 ? 2 : 1;
+
+      // Gana el set quien llega a 3 juegos (con 2 de ventaja o 4-3 tras el súper tie-break)
+      if ((state.p1.games >= 3 || state.p2.games >= 3) && !(state.p1.games === 3 && state.p2.games === 3)) {
+        if (state.p1.games >= 3 && state.p1.games - state.p2.games >= 1) {
+          updateScoreHUD();
+          finishMatch();
+          return;
+        }
+        if (state.p2.games >= 3 && state.p2.games - state.p1.games >= 1) {
+          updateScoreHUD();
+          finishMatch();
+          return;
+        }
+      }
+      if (state.p1.games === 3 && state.p2.games === 3) {
+        showFeedback('🔥 ¡3-3! SÚPER TIE-BREAK A 10 PUNTOS');
+      }
+    }
+  }
+
+  state.faults = 0;
+  updateScoreHUD();
+  setTimeout(() => {
+    if (state.running) setupPoint();
+  }, 1150);
+}
+
+function formatPoints(p1Pts, p2Pts) {
+  if (state.p1.games === 3 && state.p2.games === 3) {
+    return [String(p1Pts), String(p2Pts)];
+  }
+  const map = ['0', '15', '30', '40'];
+  if (p1Pts >= 3 && p2Pts >= 3) {
+    if (p1Pts === p2Pts) return ['40', '40'];
+    return p1Pts > p2Pts ? ['AD', '40'] : ['40', 'AD'];
+  }
+  return [map[Math.min(p1Pts, 3)], map[Math.min(p2Pts, 3)]];
+}
+
+function updateScoreHUD() {
+  const [s1, s2] = formatPoints(state.p1.pts, state.p2.pts);
+  document.getElementById('hud-p1-pts').textContent = s1;
+  document.getElementById('hud-p2-pts').textContent = s2;
+  document.getElementById('hud-p1-games').textContent = state.p1.games;
+  document.getElementById('hud-p2-games').textContent = state.p2.games;
+}
+
+function finishMatch() {
+  state.running = false;
+  document.getElementById('touch-controls').style.display = 'none';
+  const won = state.p1.games > state.p2.games;
+  document.getElementById('end-title').textContent = won
+    ? `🏆 ¡Victoria de ${LEGENDS[selectedP1].name}!`
+    : `Fin del partido · Ganó ${LEGENDS[selectedP2].name}`;
+  document.getElementById('end-subtitle').textContent =
+    `Marcador final: ${state.p1.games} - ${state.p2.games} en el Abierto de la Isla`;
+  document.getElementById('stat-p1-head').textContent = LEGENDS[selectedP1].name;
+  document.getElementById('stat-p2-head').textContent = LEGENDS[selectedP2].name;
+
+  const rows = [
+    [state.p1.games, 'Juegos ganados', state.p2.games],
+    [state.p1.aces, 'Aces', state.p2.aces],
+    [state.p1.winners, 'Tiros ganadores', state.p2.winners],
+    [state.p1.errors, 'Errores no forzados', state.p2.errors],
+    [`${state.p1.fastestServe} km/h`, 'Saque más rápido', '184 km/h'],
+    [`${state.p1.longestRally} golpes`, 'Peloteo más largo', `${state.p1.longestRally} golpes`]
+  ];
+  document.getElementById('stats-tbody').innerHTML = rows
+    .map(r => `<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td><b>${r[2]}</b></td></tr>`)
+    .join('');
+  document.getElementById('end-screen').style.display = 'flex';
+}
+
+/* ============================================================================
+   7. CONTROLES: TECLADO + JOYSTICK TÁCTIL + 4 BOTONES DE GOLPE
+   ============================================================================ */
+const keys = {};
+const shotKeyMap = { KeyZ: 'topspin', KeyX: 'flat', KeyC: 'slice', KeyV: 'lob' };
+
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Escape' || e.code === 'Space') {
+    if (state.running) togglePause();
+  }
+  if (e.code === 'KeyF') toggleFullscreen();
+
+  if (state.running && !state.paused && shotKeyMap[e.code]) {
+    const shot = shotKeyMap[e.code];
+    if (state.server === 1 && (state.phase === 'serve_wait' || state.phase === 'serve_toss')) {
+      if (!e.repeat) handlePlayerServeButton(shot);
+    } else if (state.phase === 'rally') {
+      state.p1.charging = true;
+      state.p1.queuedShot = shot;
+    }
+  }
+});
+
+window.addEventListener('keyup', e => {
+  keys[e.code] = false;
+  if (shotKeyMap[e.code] && state.p1.charging) {
+    tryPlayerHitBall();
+    state.p1.charging = false;
+    state.p1.chargeTime = 0;
+    chargeRingMat.opacity = 0;
+    aimArrowGroup.visible = false;
+  }
+});
+
+// Joystick táctil
+let joyTouchId = null;
+let joyOrigin = { x: 0, y: 0 };
+let joyVec = { x: 0, y: 0 };
+const joyZone = document.getElementById('joystick-zone');
+const joyKnob = document.getElementById('joystick-knob');
+
+joyZone.addEventListener('pointerdown', e => {
+  joyTouchId = e.pointerId;
+  const rect = document.getElementById('joystick-base').getBoundingClientRect();
+  joyOrigin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  updateJoyPosition(e.clientX, e.clientY);
+});
+window.addEventListener('pointermove', e => {
+  if (e.pointerId === joyTouchId) updateJoyPosition(e.clientX, e.clientY);
+});
+window.addEventListener('pointerup', e => {
+  if (e.pointerId === joyTouchId) {
+    joyTouchId = null;
+    joyVec = { x: 0, y: 0 };
+    joyKnob.style.transform = 'translate(0px, 0px)';
+  }
+});
+
+function updateJoyPosition(cx, cy) {
+  const dx = cx - joyOrigin.x;
+  const dy = cy - joyOrigin.y;
+  const maxR = 40;
+  const dist = Math.min(Math.hypot(dx, dy), maxR);
+  const angle = Math.atan2(dy, dx);
+  const kx = Math.cos(angle) * dist;
+  const ky = Math.sin(angle) * dist;
+  joyKnob.style.transform = `translate(${kx}px, ${ky}px)`;
+  joyVec = { x: kx / maxR, y: ky / maxR };
+}
+
+function getInputVector() {
+  let x = joyVec.x;
+  let y = joyVec.y;
+  if (keys['ArrowLeft'] || keys['KeyA']) x = -1;
+  if (keys['ArrowRight'] || keys['KeyD']) x = 1;
+  if (keys['ArrowUp'] || keys['KeyW']) y = -1;
+  if (keys['ArrowDown'] || keys['KeyS']) y = 1;
+  const len = Math.hypot(x, y);
+  if (len > 1) { x /= len; y /= len; }
+  return { x, y };
+}
+
+// Botones táctiles de golpe
+document.querySelectorAll('.shot-btn').forEach(btn => {
+  const shot = btn.dataset.shot;
+  btn.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    btn.classList.add('active');
+    if (!state.running || state.paused) return;
+    if (state.server === 1 && (state.phase === 'serve_wait' || state.phase === 'serve_toss')) {
+      handlePlayerServeButton(shot);
+    } else if (state.phase === 'rally') {
+      state.p1.charging = true;
+      state.p1.queuedShot = shot;
+    }
+  });
+  btn.addEventListener('pointerup', () => {
+    btn.classList.remove('active');
+    if (state.p1.charging) {
+      tryPlayerHitBall();
+      state.p1.charging = false;
+      state.p1.chargeTime = 0;
+      chargeRingMat.opacity = 0;
+      aimArrowGroup.visible = false;
+    }
+  });
+});
+
+/* ============================================================================
+   8. BUCLE PRINCIPAL DE SIMULACIÓN Y RENDERIZADO 3D
+   ============================================================================ */
+let lastTime = performance.now();
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+
+  // Animación de público y banderas de viento
+  crowdSpectators.forEach(s => {
+    s.position.y = s.userData.baseY + Math.abs(Math.sin(now * 0.004 + s.userData.phase)) * 0.18;
+  });
+  windFlags.forEach(f => {
+    f.mesh.rotation.y = Math.sin(now * 0.008) * (matchCondition === 'viento' ? 0.55 : 0.15);
+  });
+
+  if (state.running && !state.paused) {
+    updateSimulation(dt);
+  }
+
+  renderer.render(scene, camera);
+}
+
+function updateSimulation(dt) {
+  const leg1 = LEGENDS[selectedP1];
+  const leg2 = LEGENDS[selectedP2];
+
+  // 1. Movimiento del Jugador 1
+  const inp = getInputVector();
+  const energyFactor = state.p1.energy < 25 ? 0.76 : 1.0;
+  const maxSpeed1 = (7.4 + (leg1.stats.speed - 85) * 0.12) * energyFactor;
+
+  if (state.phase === 'serve_wait' || state.phase === 'serve_toss') {
+    state.p1.vx = 0;
+    state.p1.vz = 0;
+  } else {
+    state.p1.vx = inp.x * maxSpeed1;
+    state.p1.vz = inp.y * maxSpeed1;
+    state.p1.x = THREE.MathUtils.clamp(state.p1.x + state.p1.vx * dt, -HALF_W - 2.6, HALF_W + 2.6);
+    state.p1.z = THREE.MathUtils.clamp(state.p1.z + state.p1.vz * dt, 0.85, HALF_L + 3.6);
+    if (Math.hypot(inp.x, inp.y) > 0.2) {
+      const drain = matchCondition === 'calor' ? 2.4 : 1.3;
+      state.p1.energy = Math.max(10, state.p1.energy - drain * dt);
+    }
+  }
+
+  // 2. Barra de lanzamiento de saque en 2 tiempos
+  if (state.phase === 'serve_toss') {
+    state.tossHeight += state.tossVel * dt;
+    state.tossVel -= 2.35 * dt;
+    state.ball.y = 1.1 + Math.max(0, state.tossHeight * 1.8);
+    const cursor = document.getElementById('serve-cursor');
+    cursor.style.bottom = `${THREE.MathUtils.clamp(state.tossHeight * 88, 0, 95)}%`;
+    if (state.tossHeight <= 0) {
+      state.phase = 'serve_wait';
+      document.getElementById('serve-meter').style.display = 'none';
+      showFeedback('Lanzamiento caído · Intenta de nuevo');
+    }
+  }
+
+  // 3. Carga del golpe, anillo en el suelo y flecha de puntería
+  if (state.p1.charging && state.phase === 'rally') {
+    state.p1.chargeTime += dt;
+    chargeRing.position.set(state.p1.x, 0.035, state.p1.z);
+    chargeRingMat.opacity = 0.88;
+    const scale = 0.65 + Math.min(state.p1.chargeTime, 1.1) * 0.55;
+    chargeRing.scale.set(scale, scale, 1);
+    // Pasa a rojo si se sobrecarga más de 1 segundo (Versión 1.5.0)
+    chargeRingMat.color.setHex(state.p1.chargeTime > 1.0 ? 0xff5c5c : 0xd9ec4b);
+
+    aimArrowGroup.visible = true;
+    aimArrowGroup.position.set(state.p1.x, 0.04, state.p1.z);
+    aimArrowGroup.rotation.y = -inp.x * 0.48;
+
+    // Auto-impacto si la pelota entra en la zona óptima de contacto mientras carga
+    const distToBall = Math.hypot(state.ball.x - state.p1.x, state.ball.z - state.p1.z);
+    if (state.ball.lastHitter === 2 && distToBall < 1.35 && state.ball.z > state.p1.z - 0.8) {
+      tryPlayerHitBall();
+    }
+  }
+
+  // 4. IA de la Leyenda Rival (Jugador 2)
+  if (state.phase === 'rally') {
+    const maxSpeed2 = (7.2 + (leg2.stats.speed - 85) * 0.11) * aiDifficulty;
+    let desiredX = 0;
+    let desiredZ = -HALF_L + 0.5;
+
+    if (state.ball.lastHitter === 1) {
+      desiredX = state.ball.targetBounceX;
+      desiredZ = THREE.MathUtils.clamp(state.ball.targetBounceZ - 0.6, -HALF_L - 2.2, -1.2);
+    } else {
+      // Posición de recuperación o subida a la red según el estilo de la Leyenda
+      desiredX = state.ball.x * 0.25;
+      desiredZ = (Math.random() < leg2.aiNetFreq * 0.02) ? -3.2 : (-HALF_L + 0.4);
+    }
+
+    const dx2 = desiredX - state.p2.x;
+    const dz2 = desiredZ - state.p2.z;
+    const d2 = Math.hypot(dx2, dz2);
+    if (d2 > 0.12) {
+      state.p2.x += (dx2 / d2) * Math.min(maxSpeed2 * dt, d2);
+      state.p2.z += (dz2 / d2) * Math.min(maxSpeed2 * dt, d2);
+    }
+
+    // Golpe de respuesta de la IA
+    const distBallAI = Math.hypot(state.ball.x - state.p2.x, state.ball.z - state.p2.z);
+    if (state.ball.lastHitter === 1 && state.ball.z < 0 && distBallAI < 1.65 && state.ball.y < 2.5) {
+      const aimCorner = (state.p1.x > 0 ? -1 : 1) * (1.8 + Math.random() * 2.6);
+      const aimDepth = HALF_L - 2.2 - Math.random() * 2.5;
+      const aiFlight = 0.72 + Math.random() * 0.16;
+      state.ball.lastHitter = 2;
+      state.rallyCount++;
+      playSound('hit');
+      p2Mesh.userData.armPivot.rotation.x = 1.1;
+      setTimeout(() => { if (p2Mesh) p2Mesh.userData.armPivot.rotation.x = 0; }, 160);
+      launchBallTowards(state.ball.x, state.ball.y, state.ball.z, aimCorner, aimDepth, aiFlight, 'topspin');
+    }
+  }
+
+  // 5. Física de la pelota en vuelo, viento, red y botes
+  if (state.phase === 'rally') {
+    const gravity = matchCondition === 'altura' ? 16.2 : 18.5;
+    const prevZ = state.ball.z;
+
+    if (matchCondition === 'viento') {
+      state.ball.vx += 1.35 * dt;
+    }
+
+    state.ball.x += state.ball.vx * dt;
+    state.ball.y += state.ball.vy * dt;
+    state.ball.z += state.ball.vz * dt;
+    state.ball.vy -= gravity * dt;
+
+    // Colisión con la red central (z = 0)
+    if ((prevZ > 0 && state.ball.z <= 0) || (prevZ < 0 && state.ball.z >= 0)) {
+      if (state.ball.y < 0.96) {
+        // Toca la cinta o queda en la red
+        if (state.ball.y > 0.84 && state.rallyCount === 0) {
+          // Let de saque: toca la cinta y pasa
+          showFeedback('¡LET! · Se repite el saque');
+          setupPoint();
+          return;
+        }
+        showFeedback('¡A la red!', true);
+        handleOutOrNet();
+        return;
+      }
+    }
+
+    // Pique / Bote en el suelo
+    if (state.ball.y <= 0.21) {
+      state.ball.y = 0.21;
+      state.ball.bounces++;
+      playSound('bounce');
+
+      if (state.ball.bounces === 1) {
+        // Verificar si picó dentro de los límites reglamentarios
+        const isServeShot = (state.rallyCount === 0);
+        let inBounds = Math.abs(state.ball.x) <= HALF_W + 0.18 && Math.abs(state.ball.z) <= HALF_L + 0.18;
+
+        if (isServeShot) {
+          const validZ = state.server === 1
+            ? (state.ball.z <= 0 && state.ball.z >= -SERVICE_Z - 0.22)
+            : (state.ball.z >= 0 && state.ball.z <= SERVICE_Z + 0.22);
+          inBounds = inBounds && validZ;
+        }
+
+        if (!inBounds) {
+          handleOutOrNet();
+          return;
+        }
+
+        // Bote realista según el efecto (Versión 1.0.1 de Minitenis)
+        if (state.ball.spin === 'slice') {
+          state.ball.vy = Math.abs(state.ball.vy) * 0.48;
+          state.ball.vz *= 0.72;
+        } else if (state.ball.spin === 'topspin') {
+          state.ball.vy = Math.min(Math.abs(state.ball.vy) * 0.74, 6.8);
+          state.ball.vz *= 0.88;
+        } else if (state.ball.spin === 'lob') {
+          state.ball.vy = Math.min(Math.abs(state.ball.vy) * 0.78, 8.2);
+          state.ball.vz *= 0.75;
+        } else {
+          state.ball.vy = Math.min(Math.abs(state.ball.vy) * 0.64, 5.8);
+          state.ball.vz *= 0.86;
+        }
+      } else if (state.ball.bounces >= 2) {
+        // Doble bote: punto para quien golpeó la pelota
+        awardPoint(state.ball.lastHitter);
+        return;
+      }
+    }
+
+    // Si la pelota se aleja mucho del estadio sin segundo bote
+    if (Math.abs(state.ball.z) > HALF_L + 7.5 || Math.abs(state.ball.x) > HALF_W + 6.5) {
+      if (state.ball.bounces === 0) {
+        handleOutOrNet();
+      } else {
+        awardPoint(state.ball.lastHitter);
+      }
+      return;
+    }
+  }
+
+  // Actualizar mallas 3D
+  if (p1Mesh) p1Mesh.position.set(state.p1.x, 0, state.p1.z);
+  if (p2Mesh) p2Mesh.position.set(state.p2.x, 0, state.p2.z);
+  ballMesh.position.set(state.ball.x, state.ball.y, state.ball.z);
+  ballShadow.position.set(state.ball.x, 0.025, state.ball.z);
+}
+
+function handleOutOrNet() {
+  if (state.rallyCount === 0) {
+    // Falta de saque
+    state.faults++;
+    if (state.faults === 1) {
+      showFeedback('¡Falta! · Segundo saque', true);
+      setTimeout(() => { if (state.running) setupPoint(); }, 900);
+    } else {
+      showFeedback('¡DOBLE FALTA!', true);
+      state.faults = 0;
+      awardPoint(state.server === 1 ? 2 : 1);
+    }
+  } else {
+    showFeedback('¡FUERA!', true);
+    awardPoint(state.ball.lastHitter === 1 ? 2 : 1);
+  }
+}
+
+/* ============================================================================
+   9. INTERFAZ DEL MENÚ, PANTALLA COMPLETA Y BOTÓN DE DESCARGA DIRECTA
+   ============================================================================ */
+function renderMenuUI() {
+  const container = document.getElementById('legends-container');
+  container.innerHTML = LEGENDS.map((leg, idx) => `
+    <div class="legend-card ${idx === selectedP1 ? 'selected-p1' : ''}" data-idx="${idx}">
+      <div class="legend-top">
+        <span class="legend-name">${leg.name}</span>
+        <span class="tier-tag">★ LEYENDA</span>
+      </div>
+      <div class="gear-info">${leg.style}<br><b>${leg.kit}</b></div>
+      <div class="stat-bar-row"><span>Velocidad</span><div class="stat-track"><div class="stat-fill" style="width:${leg.stats.speed}%"></div></div></div>
+      <div class="stat-bar-row"><span>Potencia</span><div class="stat-track"><div class="stat-fill" style="width:${leg.stats.power}%"></div></div></div>
+      <div class="stat-bar-row"><span>Control</span><div class="stat-track"><div class="stat-fill" style="width:${leg.stats.control}%"></div></div></div>
+      <div class="stat-bar-row"><span>Saque</span><div class="stat-track"><div class="stat-fill" style="width:${leg.stats.serve}%"></div></div></div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.legend-card').forEach(card => {
+    card.addEventListener('click', () => {
+      selectedP1 = Number(card.dataset.idx);
+      if (selectedP2 === selectedP1) selectedP2 = (selectedP1 + 1) % LEGENDS.length;
+      renderMenuUI();
+    });
+  });
+
+  const rivalRow = document.getElementById('rival-row');
+  rivalRow.innerHTML = LEGENDS.map((leg, idx) => `
+    <button class="chip-btn ${idx === selectedP2 ? 'active' : ''}" data-ridx="${idx}">
+      Rival: ${leg.name}
+    </button>
+  `).join('');
+
+  rivalRow.querySelectorAll('.chip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedP2 = Number(btn.dataset.ridx);
+      renderMenuUI();
+    });
+  });
+}
+
+document.querySelectorAll('#diff-row .chip-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#diff-row .chip-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    aiDifficulty = parseFloat(btn.dataset.diff);
+  });
+});
+
+document.querySelectorAll('#cond-row .chip-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#cond-row .chip-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    matchCondition = btn.dataset.cond;
+  });
+});
+
+function startNewMatch() {
+  document.getElementById('menu-screen').style.display = 'none';
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('touch-controls').style.display = 'block';
+
+  // Aplicar iluminación según condición (Día o Noche)
+  if (matchCondition === 'noche') {
+    scene.background = new THREE.Color(0x0b132b);
+    ambientLight.intensity = 0.55;
+    dirLight.intensity = 1.15;
+  } else {
+    scene.background = new THREE.Color(0x87ceeb);
+    ambientLight.intensity = 0.75;
+    dirLight.intensity = 0.9;
+  }
+
+  // Crear modelos 3D de las Leyendas seleccionadas
+  if (p1Mesh) scene.remove(p1Mesh);
+  if (p2Mesh) scene.remove(p2Mesh);
+  p1Mesh = createTennisPlayerMesh(LEGENDS[selectedP1]);
+  p2Mesh = createTennisPlayerMesh(LEGENDS[selectedP2]);
+  p2Mesh.rotation.y = Math.PI;
+  scene.add(p1Mesh);
+  scene.add(p2Mesh);
+
+  document.getElementById('hud-p1-name').textContent = LEGENDS[selectedP1].name;
+  document.getElementById('hud-p2-name').textContent = LEGENDS[selectedP2].name;
+
+  state.p1.pts = 0; state.p1.games = 0; state.p1.energy = 100;
+  state.p1.aces = 0; state.p1.winners = 0; state.p1.errors = 0;
+  state.p1.fastestServe = 0; state.p1.longestRally = 0;
+  state.p2.pts = 0; state.p2.games = 0; state.p2.aces = 0; state.p2.winners = 0; state.p2.errors = 0;
+  state.server = 1;
+  state.faults = 0;
+  state.running = true;
+  state.paused = false;
+
+  updateScoreHUD();
+  setupPoint();
+}
+
+document.getElementById('btn-start-match').addEventListener('click', startNewMatch);
+document.getElementById('btn-rematch').addEventListener('click', startNewMatch);
+document.getElementById('btn-back-menu').addEventListener('click', () => {
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('menu-screen').style.display = 'flex';
+});
+
+function togglePause() {
+  state.paused = !state.paused;
+  document.getElementById('btn-pause').textContent = state.paused ? '▶ Seguir' : '⏸ Pausa';
+  showFeedback(state.paused ? 'Partido en Pausa' : '¡Juego reanudado!');
+}
+document.getElementById('btn-pause').addEventListener('click', () => {
+  if (state.running) togglePause();
+});
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen?.();
+  } else {
+    document.exitFullscreen?.();
+  }
+}
+document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+
+// Descargar este mismo archivo HTML completo para jugarlo localmente
+function downloadStandaloneHTML() {
+  const htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'minitenis-3d-leyendas.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+document.getElementById('btn-download').addEventListener('click', downloadStandaloneHTML);
+document.getElementById('btn-download-menu').addEventListener('click', downloadStandaloneHTML);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+renderMenuUI();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
